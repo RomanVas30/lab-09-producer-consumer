@@ -4,3 +4,9 @@
 [submodule "tools/gate"]
 	path = tools/gate
 	url = https://github.com/hunter-packages/gate.git
+[submodule "third-party/gumbo-parser"]
+	path = third-party/gumbo-parser
+	url = https://github.com/google/gumbo-parser
+[submodule "third-party/ThreadPool"]
+	path = third-party/ThreadPool
+	url = https://github.com/progschj/ThreadPool
