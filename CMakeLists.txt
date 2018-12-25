@@ -34,6 +34,17 @@ find_package(Beast CONFIG REQUIRED)
 
 add_library(krauler STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/sources/source.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/parser.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/attribute.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/char_ref.c 
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/error.c 
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/string_buffer.c 
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/string_piece.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/tag.c 
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/tokenizer.c 
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/utf8.c 
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/util.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/vector.c 
 )
 add_executable(tests
   ${CMAKE_CURRENT_SOURCE_DIR}/sources/source.cpp
@@ -41,12 +52,12 @@ add_executable(tests
 
 target_include_directories(krauler 
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/ThreadPool
 )
 target_include_directories(tests 
  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
- PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser
+ PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src
  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/ThreadPool
 )
 target_link_libraries(tests GTest::main Boost::boost Beast::Beast krauler)
