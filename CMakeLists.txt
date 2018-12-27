@@ -26,14 +26,14 @@ string(APPEND CMAKE_CXX_FLAGS " -Wshadow -Wnon-virtual-dtor")
 hunter_add_package(GTest)
 find_package(GTest CONFIG REQUIRED)
 
-hunter_add_package(Boost)
-find_package(Boost CONFIG REQUIRED)
+hunter_add_package(Boost COMPONENTS program_options)
+find_package(Boost CONFIG REQUIRED program_options)
 
 hunter_add_package(Beast)
 find_package(Beast CONFIG REQUIRED)
 
 add_library(krauler STATIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/sources/source.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/sources/krauler.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/parser.c
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/attribute.c
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/char_ref.c 
@@ -47,21 +47,24 @@ add_library(krauler STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/vector.c 
 )
 add_executable(tests
-  ${CMAKE_CURRENT_SOURCE_DIR}/sources/source.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/sources/krauler.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/sources/main.cpp
 )
 
 target_include_directories(krauler 
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/visualc/include
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/ThreadPool
 )
 target_include_directories(tests 
  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src
+ PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/visualc/include
  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/ThreadPool
 )
-target_link_libraries(tests GTest::main Boost::boost Beast::Beast krauler)
-target_link_libraries(krauler Boost::boost Beast::Beast)
+target_link_libraries(tests GTest::main Boost::boost Beast::Beast Boost::program_options krauler)
+target_link_libraries(krauler Boost::boost Beast::Beast Boost::program_options)
 enable_testing()
 add_test(NAME unit_tests COMMAND tests) 
 
