@@ -1,61 +1,160 @@
 #include <krauler.hpp>
 
-// std::condition_variable cv;
-
-void Krauler::download(const std::string& host) {
-  // std::cout << "THERE" << std::endl;
-  const std::string target = "/echo";
-  //  boost::asio::io_context ioc;
-  boost::asio::ip::tcp::resolver resolver(ioc);
-  boost::asio::ip::tcp::socket socket(ioc);
-  boost::asio::connect(socket, resolver.resolve(host, "80"));
-  http::request<http::string_body> req(http::verb::get, target, 11);
-  std::lock_guard<std::recursive_mutex> lock(download_mutex);
-  req.set(http::field::host, host);
-  req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-  http::write(socket, req);
-  boost::beast::flat_buffer buffer;
-  http::response<http::string_body> res;
-  http::read(socket, buffer, res);
-  std::string msg = res.body();
-  socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
-  parse_queue.push_back(msg);
-  std::cout << "New href" << std::endl;
-  // cv.notify_one();
-  parse();
+void Krauler::download(std::string host, std::string target) {
+  boost::recursive_mutex::scoped_lock lk(download_mutex);
+  --count_not_download;
+  try {
+    net::io_context ioc;
+    ssl::context ctx{ssl::context::sslv23_client};
+    load_root_certificates(ctx);
+    ctx.set_verify_mode(ssl::verify_peer);
+    tcp::resolver resolver{ioc};
+    ssl::stream<tcp::socket> stream{ioc, ctx};
+    auto const results = resolver.resolve(
+      boost::asio::ip::tcp::resolver::query{host, "https"});
+    net::connect(stream.next_layer(),
+                 results.begin(),
+                 results.end());
+    stream.handshake(ssl::stream_base::client);
+    http::request<http::string_body> req(http::verb::get,
+                                         target,
+                                         11);
+    req.set(http::field::host, host);
+    req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+    req.set(http::field::accept, "text/html");
+    req.set(http::field::connection, "close");
+    http::write(stream, req);
+    beast::flat_buffer buffer;
+    http::response<http::string_body> res;
+    http::read(stream, buffer, res);
+    std::string msg = res.body();
+    beast::error_code ec;
+    stream.shutdown(ec);
+    parse_queue.push_back(msg);
+  }
+  catch (std::exception& e) {
+    e.what();
+  }
+  notified = true;
+  cv.notify_one();
 }
 
-void Krauler::search_for_links(GumboNode* node, ThreadPool& pool) {
+void Krauler::search_for_links(GumboNode* node) {
   if (node->type != GUMBO_NODE_ELEMENT) {
     return;
   }
   GumboAttribute* href;
   if (node->v.element.tag == GUMBO_TAG_A &&
       (href = gumbo_get_attribute(&node->v.element.attributes, "href"))) {
-     std::cout <<converting (href->value) << std::endl;
-    pool.enqueue(&Krauler::download, this, converting(href->value));
+    std::string curr_str = href->value;
+    bool valid_href = false;
+    if (curr_str.find("https:") == 0)
+      valid_href = true;
+    if ((curr_str.size() > 5) && (valid_href)){
+      links.push_back(href->value);
+    }
   }
   GumboVector* children = &node->v.element.children;
   for (unsigned int i = 0; i < children->length; ++i) {
-    search_for_links(static_cast<GumboNode*>(children->data[i]), pool);
+    search_for_links(static_cast<GumboNode*>(children->data[i]));
   }
 }
 
-void Krauler::parse() {
-  GumboOutput* output = gumbo_parse(parse_queue.front().c_str());
-  ThreadPool pool(4);
-  search_for_links(output->root, pool);
-  std::cout << parse_queue.size() << std::endl;
-  /*for (unsigned i = 0; i < parse_queue.size(); i++) {
-    std::cout << parse_queue[i] << std::endl;
-    std::cout << std::endl;
-  }*/
-  gumbo_destroy_output(&kGumboDefaultOptions, output);
+void Krauler::search_for_pictures(GumboNode* node, unsigned depth) {
+  if ((node->type != GUMBO_NODE_ELEMENT) || (depth == 0)) {
+    return;
+  }
+  GumboAttribute* src;
+  if (node->v.element.tag == GUMBO_TAG_IMG &&
+      (src = gumbo_get_attribute(&node->v.element.attributes, "src"))) {
+           file_queue.push_back(src->value);
+  }
+  GumboVector* children = &node->v.element.children;
+  --depth;
+  for (unsigned int i = 0; i < children->length; ++i) {
+    search_for_pictures(static_cast<GumboNode*> (children->data[i]), depth);
+  }
 }
 
-std::string Krauler::converting(std::string url) {
-  if ((url[0] == '/') && (url[1] == '/')) url = url.substr(2);
-  std::size_t pos = url.find("https:");
-  if (pos == 0) url = url.substr(8);
-  return url;
+void Krauler::parse_main_url() {
+  GumboOutput* output = gumbo_parse(parse_queue.front().c_str());
+  search_for_links(output->root);
+  gumbo_destroy_output(&kGumboDefaultOptions, output);
+  parse_queue.pop_front();
+  notified = false;
+}
+
+void Krauler::parse_url() {
+  boost::recursive_mutex::scoped_lock lk(download_mutex);
+  --count_unparsed;
+  while ((!notified) && (count_not_download != 0))
+    cv.wait(lk);
+  if (parse_queue.size() != 0){
+    GumboOutput* output = gumbo_parse(parse_queue.front().c_str());
+    boost::recursive_mutex::scoped_lock look(download_mutex);
+    search_for_pictures(output->root, depth_);
+    gumbo_destroy_output(&kGumboDefaultOptions, output);
+    parse_queue.pop_front();
+  }
+  done = true;
+  notified = false;
+  cv_file.notify_one();
+}
+
+std::string Krauler::convert_url_host (
+  std::string url) {
+  if (url.find("https:") == 0)
+    url = url.substr(8);
+  std::string result_host = "";
+  for (unsigned i = 0; i < url.size(); i++) {
+    if ((url[i] == '/') || (url[i] == '?')) break;
+    result_host+=url[i];
+  }
+    return result_host;
+}
+
+std::string Krauler::convert_url_target (std::string url) {
+  if (url.find("https:") == 0)
+    url = url.substr(8);
+  std::string result_target = "";
+  unsigned pos = 0;
+  while (url[pos] != '/') { ++pos; }
+  for (unsigned i = pos; i < url.size(); i++) {
+    result_target += url[i];
+  }
+  return result_target;
+}
+
+void Krauler::filing() {
+  boost::recursive_mutex::scoped_lock lock(download_mutex);
+  while ((!done) && (count_unparsed != 0))
+    cv_file.wait(lock);
+  done = false;
+  while (file_queue.size() != 0) {
+    //BOOST_LOG_TRIVIAL(trace) << file_queue.front() << std::endl;
+    std::cout << file_queue.front() << std::endl;
+    file_queue.pop_front();
+  }
+}
+
+void Krauler::make(){
+  try {
+    download(convert_url_host(url_), convert_url_target(url_));
+    parse_main_url();
+    ThreadPool pool_writer(1);
+    ThreadPool pool_downloads(network_threads_);
+    ThreadPool pool_parsers(parser_threads_);
+    count_not_download = count_unparsed = links.size();
+    for (unsigned i = 0; i < links.size(); ++i){
+      pool_downloads.enqueue(&Krauler::download, this,
+                             convert_url_host(links[i]),
+                             convert_url_target(links[i]));
+      pool_parsers.enqueue(&Krauler::parse_url, this);
+      //pool_writer.enqueue(&Krauler::filing, this);
+      filing();
+    }
+  }
+  catch (std::exception& e) {
+    e.what();
+  }
 }
