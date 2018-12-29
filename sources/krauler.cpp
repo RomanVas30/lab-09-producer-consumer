@@ -1,5 +1,9 @@
 #include <krauler.hpp>
 
+#include <boost/log/core.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/trivial.hpp>
+
 void Krauler::download(std::string host, std::string target) {
   boost::recursive_mutex::scoped_lock lk(download_mutex);
   --count_not_download;
@@ -131,14 +135,14 @@ void Krauler::filing() {
     cv_file.wait(lock);
   done = false;
   while (file_queue.size() != 0) {
-    //BOOST_LOG_TRIVIAL(trace) << file_queue.front() << std::endl;
-    std::cout << file_queue.front() << std::endl;
+    BOOST_LOG_TRIVIAL(trace) << file_queue.front() << std::endl;
     file_queue.pop_front();
   }
 }
 
 void Krauler::make(){
   try {
+    boost::log::add_file_log(output_);
     download(convert_url_host(url_), convert_url_target(url_));
     parse_main_url();
     ThreadPool pool_writer(1);
@@ -150,8 +154,7 @@ void Krauler::make(){
                              convert_url_host(links[i]),
                              convert_url_target(links[i]));
       pool_parsers.enqueue(&Krauler::parse_url, this);
-      //pool_writer.enqueue(&Krauler::filing, this);
-      filing();
+      pool_writer.enqueue(&Krauler::filing, this);
     }
   }
   catch (std::exception& e) {
