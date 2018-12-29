@@ -6,6 +6,13 @@
 #include <boost/log/utility/setup/common_attributes.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/sources/record_ostream.hpp>
+#include <boost/log/sinks/sync_frontend.hpp>
+#include <boost/log/sinks/text_file_backend.hpp>
+#include <boost/log/sinks/text_ostream_backend.hpp>
+#include <boost/log/sources/logger.hpp>
+#include <boost/smart_ptr/make_shared_object.hpp>
+#include <boost/smart_ptr/shared_ptr.hpp>
+#include <boost/log/utility/setup/file.hpp>
 
 void Krauler::download(std::string host, std::string target) {
   boost::recursive_mutex::scoped_lock lk(download_mutex);
