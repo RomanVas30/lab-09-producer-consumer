@@ -49,7 +49,13 @@ add_library(krauler STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/util.c
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src/vector.c 
 )
+
 add_executable(tests
+  ${CMAKE_CURRENT_SOURCE_DIR}/sources/krauler.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/test.cpp
+)
+
+add_executable(main
   ${CMAKE_CURRENT_SOURCE_DIR}/sources/krauler.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/sources/main.cpp
 )
@@ -59,13 +65,23 @@ target_include_directories(krauler
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/ThreadPool
 )
+
 target_include_directories(tests 
  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src
  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/ThreadPool
 )
+
+target_include_directories(main 
+ PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+ PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/gumbo-parser/src
+ PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/ThreadPool
+)
+
+target_link_libraries(main Boost::boost Beast::Beast Boost::program_options OpenSSL::SSL OpenSSL::Crypto Boost::thread Boost::system Boost::log Boost::filesystem krauler)
 target_link_libraries(tests GTest::main Boost::boost Beast::Beast Boost::program_options OpenSSL::SSL OpenSSL::Crypto Boost::thread Boost::system Boost::log Boost::filesystem krauler)
 target_link_libraries(krauler Boost::boost Beast::Beast OpenSSL::SSL OpenSSL::Crypto Boost::program_options Boost::thread Boost::system Boost::log Boost::filesystem)
+
 enable_testing()
 add_test(NAME unit_tests COMMAND tests) 
 
