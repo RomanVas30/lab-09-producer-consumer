@@ -3,6 +3,9 @@
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/trivial.hpp>
+#include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/sources/record_ostream.hpp>
 
 void Krauler::download(std::string host, std::string target) {
   boost::recursive_mutex::scoped_lock lk(download_mutex);
